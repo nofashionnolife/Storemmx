@@ -1,0 +1,1079 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Store.X</title>
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- React -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+
+  <!-- Babel -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <!-- Supabase -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      margin: 0;
+      font-family:
+        Inter,
+        ui-sans-serif,
+        system-ui,
+        -apple-system,
+        BlinkMacSystemFont,
+        "Segoe UI",
+        sans-serif;
+      background: #f7f7f7;
+      color: #222;
+    }
+
+    button,
+    input,
+    textarea,
+    select {
+      font: inherit;
+    }
+
+    .hide-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+
+    .hide-scrollbar {
+      scrollbar-width: none;
+    }
+
+    .glass {
+      background: rgba(255,255,255,.85);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+    }
+
+    .line-clamp-2 {
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .admin-sidebar {
+      min-height: calc(100vh - 64px);
+    }
+
+    @media(max-width:768px) {
+      .admin-sidebar {
+        min-height: auto;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+<div id="root"></div>
+
+<script type="text/babel">
+
+/* ============================================================
+   STORE.X
+   SINGLE FILE REACT + SUPABASE + CLOUDINARY
+   ============================================================ */
+
+
+/* ============================================================
+   1. BACKEND & MEDIA CREDENTIALS
+   ============================================================ */
+
+const SUPABASE_URL = "YOUR_SUPABASE_URL";
+const SUPABASE_ANON_KEY = "YOUR_SUPABASE_ANON_KEY";
+
+const CLOUDINARY_CLOUD_NAME = "YOUR_CLOUDINARY_CLOUD_NAME";
+const CLOUDINARY_UPLOAD_PRESET = "YOUR_CLOUDINARY_UPLOAD_PRESET";
+
+
+/* ============================================================
+   2. SUPABASE INITIALIZATION
+   ============================================================ */
+
+const {
+  createClient
+} = window.supabase;
+
+const supabase = createClient(
+  SUPABASE_URL,
+  SUPABASE_ANON_KEY
+);
+
+
+/* ============================================================
+   3. DEFAULT CONFIGURATION
+   ============================================================ */
+
+const DEFAULT_THEME = {
+  page_bg: "#f7f7f7",
+  header_bg: "#f57224",
+  nav_bg: "#ffffff",
+  card_bg: "#ffffff",
+  text_color: "#222222",
+  price_color: "#f57224",
+  button_color: "#f57224",
+  product_card_width: 250,
+  product_image_height: 220,
+  category_card_width: 130,
+  container_width: 1280
+};
+
+const DEFAULT_BRANDING = {
+  brand_name: "Store.X",
+  header_title: "Everything You Need",
+  logo_url: "",
+  favicon_url: "",
+  hero_url: "",
+  hero_headline: "Shop Smart. Live Better.",
+  hero_subtitle: "Discover amazing products and exclusive deals."
+};
+
+const EMPTY_PRODUCT = {
+  id: null,
+  name: "",
+  price: "",
+  description: "",
+  target_url: "",
+  image_url: "",
+  category_id: ""
+};
+
+const EMPTY_CATEGORY = {
+  id: null,
+  name: "",
+  image_url: ""
+};
+
+const EMPTY_PROMO = {
+  id: null,
+  title: "",
+  description: "",
+  image_url: "",
+  redirect_url: ""
+};
+
+const EMPTY_PAGE = {
+  id: null,
+  title: "",
+  slug: "",
+  html_content: "",
+  placement: "footer"
+};
+
+
+/* ============================================================
+   4. CLOUDINARY IMAGE OPTIMIZATION
+   ============================================================ */
+
+function optimizeCloudinary(url, options = {}) {
+
+  if (!url || !url.includes("cloudinary.com")) {
+    return url;
+  }
+
+  const {
+    width = "auto",
+    height = "auto",
+    crop = "fill",
+    quality = "auto",
+    format = "auto"
+  } = options;
+
+  try {
+
+    const parts = url.split("/upload/");
+
+    if (parts.length !== 2) {
+      return url;
+    }
+
+    const transformation =
+      `f_${format},q_${quality},c_${crop}` +
+      (width !== "auto" ? `,w_${width}` : "") +
+      (height !== "auto" ? `,h_${height}` : "");
+
+    return `${parts[0]}/upload/${transformation}/${parts[1]}`;
+
+  } catch (error) {
+    return url;
+  }
+}
+
+
+/* ============================================================
+   5. CLOUDINARY DIRECT UPLOAD
+   ============================================================ */
+
+async function uploadToCloudinary(file, onProgress) {
+
+  if (!file) {
+    throw new Error("No file selected.");
+  }
+
+  if (
+    CLOUDINARY_CLOUD_NAME === "YOUR_CLOUDINARY_CLOUD_NAME" ||
+    CLOUDINARY_UPLOAD_PRESET === "YOUR_CLOUDINARY_UPLOAD_PRESET"
+  ) {
+    throw new Error(
+      "Please configure your Cloudinary cloud name and unsigned upload preset."
+    );
+  }
+
+  const formData = new FormData();
+
+  formData.append("file", file);
+  formData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
+
+  const xhr = new XMLHttpRequest();
+
+  return new Promise((resolve, reject) => {
+
+    xhr.open(
+      "POST",
+      `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`
+    );
+
+    xhr.upload.onprogress = event => {
+
+      if (
+        event.lengthComputable &&
+        typeof onProgress === "function"
+      ) {
+
+        const percent =
+          Math.round((event.loaded / event.total) * 100);
+
+        onProgress(percent);
+      }
+
+    };
+
+    xhr.onload = () => {
+
+      if (xhr.status >= 200 && xhr.status < 300) {
+
+        try {
+
+          const response = JSON.parse(xhr.responseText);
+
+          resolve(response.secure_url);
+
+        } catch {
+
+          reject(new Error("Invalid Cloudinary response."));
+
+        }
+
+      } else {
+
+        reject(
+          new Error(
+            `Cloudinary upload failed (${xhr.status}).`
+          )
+        );
+
+      }
+
+    };
+
+    xhr.onerror = () => {
+      reject(new Error("Cloudinary network error."));
+    };
+
+    xhr.send(formData);
+
+  });
+}
+
+
+/* ============================================================
+   6. GENERIC HELPERS
+   ============================================================ */
+
+function uid() {
+  return crypto.randomUUID();
+}
+
+function money(value) {
+  const number = Number(value || 0);
+
+  return new Intl.NumberFormat("en-PK", {
+    style: "currency",
+    currency: "PKR",
+    maximumFractionDigits: 0
+  }).format(number);
+}
+
+function safeHTML(html) {
+  return {
+    __html: html || ""
+  };
+}
+
+function slugify(text) {
+
+  return String(text || "")
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "");
+
+}
+
+function openExternal(url) {
+
+  if (!url) return;
+
+  let finalUrl = url.trim();
+
+  if (
+    !finalUrl.startsWith("http://") &&
+    !finalUrl.startsWith("https://")
+  ) {
+    finalUrl = "https://" + finalUrl;
+  }
+
+  window.open(
+    finalUrl,
+    "_blank",
+    "noopener,noreferrer"
+  );
+}
+
+
+/* ============================================================
+   7. SUPABASE DATABASE HELPERS
+   ============================================================ */
+
+async function getTable(table) {
+
+  const { data, error } =
+    await supabase
+      .from(table)
+      .select("*")
+      .order("created_at", {
+        ascending: false
+      });
+
+  if (error) {
+    console.error(table, error);
+    return [];
+  }
+
+  return data || [];
+}
+
+async function upsertRow(table, payload) {
+
+  const { data, error } =
+    await supabase
+      .from(table)
+      .upsert(payload)
+      .select()
+      .single();
+
+  if (error) {
+    throw error;
+  }
+
+  return data;
+}
+
+async function deleteRow(table, id) {
+
+  const { error } =
+    await supabase
+      .from(table)
+      .delete()
+      .eq("id", id);
+
+  if (error) {
+    throw error;
+  }
+}
+
+
+/* ============================================================
+   8. MAIN APP
+   ============================================================ */
+
+function App() {
+
+  const [route, setRoute] =
+    React.useState(window.location.hash || "#/");
+
+  const [products, setProducts] =
+    React.useState([]);
+
+  const [categories, setCategories] =
+    React.useState([]);
+
+  const [promos, setPromos] =
+    React.useState([]);
+
+  const [pages, setPages] =
+    React.useState([]);
+
+  const [flashSale, setFlashSale] =
+    React.useState(null);
+
+  const [theme, setTheme] =
+    React.useState(DEFAULT_THEME);
+
+  const [branding, setBranding] =
+    React.useState(DEFAULT_BRANDING);
+
+  const [loading, setLoading] =
+    React.useState(true);
+
+  const [cart, setCart] =
+    React.useState([]);
+
+  const [toast, setToast] =
+    React.useState("");
+
+  const [adminLoggedIn, setAdminLoggedIn] =
+    React.useState(
+      sessionStorage.getItem("storex_admin_auth") === "true"
+    );
+
+
+  /* ------------------------------------------------------------
+     HASH ROUTING
+     ------------------------------------------------------------ */
+
+  React.useEffect(() => {
+
+    const handleHash = () => {
+
+      setRoute(
+        window.location.hash || "#/"
+      );
+
+    };
+
+    window.addEventListener(
+      "hashchange",
+      handleHash
+    );
+
+    return () => {
+      window.removeEventListener(
+        "hashchange",
+        handleHash
+      );
+    };
+
+  }, []);
+
+
+  /* ------------------------------------------------------------
+     INITIAL LOAD
+     ------------------------------------------------------------ */
+
+  React.useEffect(() => {
+
+    loadEverything();
+
+  }, []);
+
+
+  async function loadEverything() {
+
+    setLoading(true);
+
+    try {
+
+      const [
+        productData,
+        categoryData,
+        promoData,
+        pageData,
+        flashData,
+        themeData,
+        brandingData
+      ] = await Promise.all([
+
+        getTable("products"),
+        getTable("categories"),
+        getTable("promo_banners"),
+        getTable("custom_pages"),
+        getTable("flash_sales"),
+        getTable("theme_config"),
+        getTable("branding_config")
+
+      ]);
+
+      setProducts(productData);
+      setCategories(categoryData);
+      setPromos(promoData);
+      setPages(pageData);
+
+      if (flashData.length) {
+        setFlashSale(flashData[0]);
+      }
+
+      if (themeData.length) {
+
+        setTheme({
+          ...DEFAULT_THEME,
+          ...themeData[0]
+        });
+
+      }
+
+      if (brandingData.length) {
+
+        setBranding({
+          ...DEFAULT_BRANDING,
+          ...brandingData[0]
+        });
+
+      }
+
+    } catch (error) {
+
+      console.error(error);
+
+    } finally {
+
+      setLoading(false);
+
+    }
+
+  }
+
+
+  /* ------------------------------------------------------------
+     REALTIME SYNC
+     ------------------------------------------------------------ */
+
+  React.useEffect(() => {
+
+    const tables = [
+      "products",
+      "categories",
+      "promo_banners",
+      "custom_pages",
+      "flash_sales",
+      "theme_config",
+      "branding_config",
+      "orders"
+    ];
+
+    const channels = [];
+
+    tables.forEach(table => {
+
+      const channel =
+        supabase
+          .channel(`storex-${table}`)
+
+          .on(
+            "postgres_changes",
+            {
+              event: "*",
+              schema: "public",
+              table
+            },
+            payload => {
+
+              console.log(
+                "Realtime:",
+                table,
+                payload.eventType
+              );
+
+              refreshTable(
+                table,
+                payload
+              );
+
+            }
+          )
+
+          .subscribe();
+
+      channels.push(channel);
+
+    });
+
+
+    return () => {
+
+      channels.forEach(channel => {
+
+        supabase.removeChannel(channel);
+
+      });
+
+    };
+
+  }, []);
+
+
+  async function refreshTable(table) {
+
+    const data = await getTable(table);
+
+    switch (table) {
+
+      case "products":
+        setProducts(data);
+        break;
+
+      case "categories":
+        setCategories(data);
+        break;
+
+      case "promo_banners":
+        setPromos(data);
+        break;
+
+      case "custom_pages":
+        setPages(data);
+        break;
+
+      case "flash_sales":
+        setFlashSale(
+          data.length ? data[0] : null
+        );
+        break;
+
+      case "theme_config":
+
+        if (data.length) {
+          setTheme({
+            ...DEFAULT_THEME,
+            ...data[0]
+          });
+        }
+
+        break;
+
+      case "branding_config":
+
+        if (data.length) {
+          setBranding({
+            ...DEFAULT_BRANDING,
+            ...data[0]
+          });
+        }
+
+        break;
+
+      default:
+        break;
+    }
+  }
+
+
+  /* ------------------------------------------------------------
+     CART
+     ------------------------------------------------------------ */
+
+  function addToCart(product) {
+
+    setCart(prev => [
+      ...prev,
+      product
+    ]);
+
+    showToast("Product added to cart.");
+
+  }
+
+  function showToast(message) {
+
+    setToast(message);
+
+    setTimeout(() => {
+      setToast("");
+    }, 2500);
+
+  }
+
+
+  /* ------------------------------------------------------------
+     DYNAMIC CSS
+     ------------------------------------------------------------ */
+
+  const cssVariables = {
+
+    "--page-bg": theme.page_bg,
+    "--header-bg": theme.header_bg,
+    "--nav-bg": theme.nav_bg,
+    "--card-bg": theme.card_bg,
+    "--text-color": theme.text_color,
+    "--price-color": theme.price_color,
+    "--button-color": theme.button_color
+
+  };
+
+
+  /* ------------------------------------------------------------
+     ADMIN ROUTE
+     ------------------------------------------------------------ */
+
+  if (
+    route.startsWith("#/admin_of_storex")
+  ) {
+
+    if (!adminLoggedIn) {
+
+      return (
+        <AdminLogin
+          onSuccess={() => {
+
+            sessionStorage.setItem(
+              "storex_admin_auth",
+              "true"
+            );
+
+            setAdminLoggedIn(true);
+
+          }}
+        />
+      );
+
+    }
+
+    return (
+      <div style={cssVariables}>
+        <AdminPanel
+          products={products}
+          categories={categories}
+          promos={promos}
+          pages={pages}
+          flashSale={flashSale}
+          theme={theme}
+          branding={branding}
+          setTheme={setTheme}
+          setBranding={setBranding}
+          setFlashSale={setFlashSale}
+          reload={loadEverything}
+          logout={() => {
+
+            sessionStorage.removeItem(
+              "storex_admin_auth"
+            );
+
+            setAdminLoggedIn(false);
+
+            window.location.hash = "#/";
+
+          }}
+          showToast={showToast}
+        />
+
+        <Toast message={toast} />
+
+      </div>
+    );
+
+  }
+
+
+  /* ------------------------------------------------------------
+     CUSTOM PAGE ROUTE
+     ------------------------------------------------------------ */
+
+  const pageSlug =
+    route.startsWith("#/page/")
+      ? route.replace("#/page/", "")
+      : null;
+
+
+  if (pageSlug) {
+
+    const page =
+      pages.find(
+        p => p.slug === pageSlug
+      );
+
+    return (
+
+      <StorefrontLayout
+        branding={branding}
+        theme={theme}
+        cart={cart}
+        pages={pages}
+        flashSale={flashSale}
+        showToast={showToast}
+      >
+
+        <main
+          className="max-w-5xl mx-auto px-4 py-12"
+        >
+
+          <div className="bg-white rounded-3xl p-6 md:p-10 shadow-sm">
+
+            <h1 className="text-3xl font-black mb-6">
+              {page?.title || "Page"}
+            </h1>
+
+            {page ? (
+
+              <div
+                className="prose max-w-none"
+                dangerouslySetInnerHTML={
+                  safeHTML(page.html_content)
+                }
+              />
+
+            ) : (
+
+              <p>
+                Page not found.
+              </p>
+
+            )}
+
+          </div>
+
+        </main>
+
+      </StorefrontLayout>
+
+    );
+
+  }
+
+
+  /* ------------------------------------------------------------
+     STOREFRONT
+     ------------------------------------------------------------ */
+
+  return (
+
+    <div style={cssVariables}>
+
+      <Storefront
+        products={products}
+        categories={categories}
+        promos={promos}
+        flashSale={flashSale}
+        branding={branding}
+        theme={theme}
+        pages={pages}
+        cart={cart}
+        addToCart={addToCart}
+        showToast={showToast}
+        loading={loading}
+      />
+
+      <Toast message={toast} />
+
+    </div>
+
+  );
+
+}
+
+
+/* ============================================================
+   ADMIN LOGIN
+   ============================================================ */
+
+function AdminLogin({ onSuccess }) {
+
+  const [passcode, setPasscode] =
+    React.useState("");
+
+  const [error, setError] =
+    React.useState("");
+
+
+  function login() {
+
+    if (passcode === "storex_admin") {
+
+      onSuccess();
+
+    } else {
+
+      setError("Invalid admin passcode.");
+
+    }
+
+  }
+
+
+  return (
+
+    <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
+
+      <div className="bg-white w-full max-w-md rounded-3xl p-8 shadow-2xl">
+
+        <div className="text-center mb-8">
+
+          <div className="w-16 h-16 rounded-2xl bg-orange-500 text-white flex items-center justify-center text-3xl font-black mx-auto mb-4">
+            X
+          </div>
+
+          <h1 className="text-2xl font-black">
+            Store.X Admin
+          </h1>
+
+          <p className="text-gray-500 mt-2">
+            Control Panel
+          </p>
+
+        </div>
+
+        <input
+          type="password"
+          value={passcode}
+          onChange={e =>
+            setPasscode(e.target.value)
+          }
+          onKeyDown={e => {
+            if (e.key === "Enter") login();
+          }}
+          placeholder="Admin passcode"
+          className="w-full border rounded-xl px-4 py-3 mb-3 outline-none focus:ring-2 focus:ring-orange-500"
+        />
+
+        {error && (
+
+          <div className="text-red-600 text-sm mb-3">
+            {error}
+          </div>
+
+        )}
+
+        <button
+          onClick={login}
+          className="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold py-3 rounded-xl"
+        >
+          Enter Admin Panel
+        </button>
+
+        <button
+          onClick={() => {
+            window.location.hash = "#/";
+          }}
+          className="w-full mt-3 py-3 text-gray-500"
+        >
+          Back to Store
+        </button>
+
+      </div>
+
+    </div>
+
+  );
+
+}
+
+
+/* ============================================================
+   STOREFRONT LAYOUT
+   ============================================================ */
+
+function StorefrontLayout({
+  children,
+  branding,
+  theme,
+  cart,
+  pages,
+  flashSale,
+  showToast
+}) {
+
+  return (
+
+    <div
+      style={{
+        background: theme.page_bg,
+        color: theme.text_color
+      }}
+      className="min-h-screen"
+    >
+
+      <Header
+        branding={branding}
+        cart={cart}
+        pages={pages}
+      />
+
+      {flashSale?.enabled &&
+       flashSale.placement === "top" && (
+
+        <FlashSaleBar
+          flashSale={flashSale}
+        />
+
+      )}
+
+      {children}
+
+      <Footer
+        branding={branding}
+        pages={pages}
+      />
+
+    </div>
+
+  );
+
+}
+
+
+/* ============================================================
+   HEADER
+   ============================================================ */
+
+function Header({
+  branding,
+  cart,
+  pages
+}) {
+
+  const headerPages =
+    pages.filter(
+      p =>
+        p.placement === "header" ||
+        p.placement === "both"
+    );
+
+
+  return (
+
+    <>
+
+      <header
+        style={{
+          background: "var(--header-bg)"
+        }}
+        className="text-white sticky top-0 z-50 shadow-md"
+      >
+
+        <div
+          className="mx-auto px-4 h-20 flex items-center gap-4"
+          style={{
+            maxWidth:
+              "var(--container-width,1280px)"
+          }}
+        >
+
+          <a
+           
